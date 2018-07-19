@@ -2,13 +2,14 @@
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // initialize the library with the numbers of the interface pins see tutorial link
 
 volatile bool toggle = 0;
+volatile bool pressed = 0;
+
 bool SET_BPM_STATE = 1;
 bool SELECT_CHANNEL_STATE = 0;
 bool RECORDING_STATE = 0;
 bool CHANNEL_ONE = 0;
 bool CHANNEL_TWO = 0;
 bool CHANNEL_THREE = 0;
-
 bool flagged_countdown = 0;
 
 float number_of_events;
@@ -19,6 +20,13 @@ float rounded_bpm = 60;
 float channel = 1;
 float rounded_channel = 1;
 float events;
+
+int recording_eight_beat_counter = 0;
+int playback_eight_beat_counter = 0;
+int channel_one[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+int channel_two[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+int channel_three[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 const float TIMER_FREQUENCY = 16000000;
 const float PRESCALE = 1024;
 
@@ -33,8 +41,6 @@ const int RED = 3;
 int display_button_resistance; // analog 0 for LCD display buttons
 int note_button_resistance;
 float countdown = 0;
-
-volatile bool pressed = 0;
 
 void setup() {
   pinMode(BPM_LED_PIN, OUTPUT); // enable pin 2 for metronome light
@@ -77,19 +83,33 @@ void setup() {
 
 void loop() {
   display_button_resistance = analogRead(DISPLAY_PIN); //Read analog input pin 0 (section 2.2, figure 2.3)
-  
+
+//  if (note_button_resistance > 500 && note_button_resistance < 520) {
+//    Serial.println("Green");
+//    power_LED(rounded_channel, GREEN);
+//  } else if (note_button_resistance > 660 && note_button_resistance < 680) {
+//    Serial.println("White");
+//    power_LED(rounded_channel, WHITE);
+//  } else if (note_button_resistance > 930 && note_button_resistance < 980) {
+//    Serial.println("Red");
+//    power_LED(rounded_channel, RED);
+//  }
+
   if (pressed) {
     note_button_resistance = analogRead(BUTTON_PIN);
 
     if (RECORDING_STATE) {
       if (note_button_resistance > 500 && note_button_resistance < 520) {
         Serial.println("Green");
+        write_input_to_array(rounded_channel, recording_eight_beat_counter, GREEN);
         power_LED(rounded_channel, GREEN);
       } else if (note_button_resistance > 660 && note_button_resistance < 680) {
         Serial.println("White");
+        write_input_to_array(rounded_channel, recording_eight_beat_counter, WHITE);
         power_LED(rounded_channel, WHITE);
       } else if (note_button_resistance > 930 && note_button_resistance < 980) {
         Serial.println("Red");
+        write_input_to_array(rounded_channel, recording_eight_beat_counter, RED);
         power_LED(rounded_channel, RED);
       }
     
@@ -105,6 +125,18 @@ void loop() {
   }
   
   if (toggle) {
+    if (playback_eight_beat_counter > 8) {
+      playback_eight_beat_counter = 0;
+    }
+
+    if (!RECORDING_STATE) {
+      power_LED(1, channel_one[playback_eight_beat_counter]);
+      power_LED(2, channel_two[playback_eight_beat_counter]);
+      power_LED(3, channel_three[playback_eight_beat_counter]);
+    }
+    playback_eight_beat_counter++; // counter for counting 8 beats for recording
+    
+    
     if (countdown == 5) { // finished counting down.. user can now record
       flagged_countdown = 0;
       countdown = 0;
@@ -112,11 +144,15 @@ void loop() {
       lcd_display_row("Rec. Channel: ", rounded_channel, 0);
       lcd_display_row("Record!", -1, 1);
       RECORDING_STATE = 1;
-      // start new timer
+      playback_eight_beat_counter = 0;
     }
     if (flagged_countdown) {
       lcd_display_row("Start loop in ", countdown, 1);
       countdown++;
+    }
+
+    if (RECORDING_STATE) {
+      recording_eight_beat_counter++;
     }
     
     if (SELECT_CHANNEL_STATE) { // IN SELCT CHANNEL STATE
@@ -125,6 +161,16 @@ void loop() {
     toggle = 0;
     TCNT1=0;
     
+  }
+
+  if (RECORDING_STATE && recording_eight_beat_counter > 8) {
+      lcd.clear();
+      lcd_display_row("BPM set to: ", bpm, 0);
+      lcd_display_row("Loop Channel: ", rounded_channel, 1);
+      recording_eight_beat_counter = 0;
+      RECORDING_STATE = 0;
+      playback_eight_beat_counter = 0;
+      SELECT_CHANNEL_STATE = 1;
   }
   
   if (display_button_resistance > 390 && display_button_resistance < 415 && SELECT_CHANNEL_STATE) {  // LEFT (browsing channels)
@@ -254,6 +300,18 @@ void reset_leds() {
   digitalWrite(A5, HIGH);
   digitalWrite(0, HIGH);
   digitalWrite(1, HIGH);
+}
+
+void write_input_to_array(int channel, int beat, int led) {
+  if (channel == 1) {
+    channel_one[beat] = led;
+  }
+  else if (channel == 2) {
+    channel_two[beat] = led;
+  }
+  else if (channel == 3) {
+    channel_three[beat] = led;
+  }
 }
 
 ISR (TIMER1_COMPA_vect) {
