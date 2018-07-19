@@ -94,7 +94,7 @@ void loop() {
 //    Serial.println("Red");
 //    power_LED(rounded_channel, RED);
 //  }
-
+  
   if (pressed) {
     note_button_resistance = analogRead(BUTTON_PIN);
 
@@ -131,8 +131,14 @@ void loop() {
 
     if (!RECORDING_STATE) {
       power_LED(1, channel_one[playback_eight_beat_counter]);
+      delay(25);
+      reset_leds();
       power_LED(2, channel_two[playback_eight_beat_counter]);
+      delay(25);
+      reset_leds();
       power_LED(3, channel_three[playback_eight_beat_counter]);
+      delay(25);
+      reset_leds();
     }
     playback_eight_beat_counter++; // counter for counting 8 beats for recording
     
